@@ -1,6 +1,8 @@
 const config = {
     waveSpeed: 1,
     wavesToMerge: 4,
+    curvesNum: 40,
+    framesToMove: 200
 }
 
 // Благодаря этой штуке я буду динамически менять кривые
@@ -43,6 +45,8 @@ interface curve {
 
     endX: number;
     endY: number;
+
+    alpha: number;
 }
 
 class BezierAnimation {
@@ -55,20 +59,46 @@ class BezierAnimation {
         cy: 0
     };
     controls: WaveNoise[] = [];
-    controlsNum: number = 4;
+    controlsNum: number = 3;
 
     start: {x:number, y:number} = {
         x: 0,
         y: 0
     }
 
-    constructor(x: number, y: number) {
+    framesCounter = 0;
+    time4Start = 0;
+    time4End = 0;
+
+    updateFrameCounter() {
+        this.framesCounter = (this.framesCounter + 1) % config.framesToMove;
+
+        if(this.framesCounter === 0 ) {
+            this.time4Start = Math.random();
+            this.time4End = Math.random();
+
+        }
+    }
+
+    getYPlacementType(type: number, i: number) {
+        if(type > .6) {
+            return this.size.h / config.curvesNum * i;
+        } else if (type > .4) {
+            return this.size.h;
+        } else if (type > .2) {
+            return this.size.cy;
+        } else {
+            return 0;
+        }
+    }
+
+    constructor(x: number = 0, y: number = 0) {
         this.start.x = x;
         this.start.y = y;
     }
 
     createControls() {
-        for (let index = 0; index < this.controlsNum; index++) {
+        for (let index = 0; index < this.controlsNum + config.curvesNum; index++) {
             const control = new WaveNoise();
 
             control.addWaves(config.wavesToMerge);
@@ -93,21 +123,30 @@ class BezierAnimation {
     }
 
     updateCurves() {
-        let curveParam: curve = {
-            startX: this.start.x,
-            startY: this.start.y,
-
-            controlX1: this.controls[0].mergeWaves() * this.size.w,
-            controlY1: this.controls[1].mergeWaves() * this.size.h,
-
-            controlX2: this.controls[2].mergeWaves() * this.size.w,
-            controlY2: this.controls[3].mergeWaves() * this.size.h,
-
-            endX: this.size.w,
-            endY: this.size.h
+        const x1 = this.controls[0].mergeWaves() * this.size.w,
+              x2 = this.controls[2].mergeWaves() * this.size.w,
+              y1 = this.controls[1].mergeWaves() * this.size.h;
+        
+        for (let index = 0; index < config.curvesNum; index++) {
+            
+            let curveParam: curve = {
+                startX:  0,
+                startY:  this.getYPlacementType(this.time4Start, index),
+    
+                controlX1: x1,
+                controlY1: y1,
+    
+                controlX2: x2,
+                controlY2: this.controls[3 + index].mergeWaves() * this.size.h,
+    
+                endX: this.size.w,
+                endY: this.getYPlacementType(this.time4End, index),
+                alpha: this.controls[3 + index].mergeWaves()
+            }
+    
+            this.drawCurve(curveParam);
+            
         }
-
-        this.drawCurve(curveParam);
 
     }
 
@@ -115,8 +154,8 @@ class BezierAnimation {
         this.controls.forEach(i => i.update());
     }
 
-    drawCurve({startX, startY, controlX1, controlY1, controlX2, controlY2, endX, endY}: curve) {
-        this.ctx!.strokeStyle = "#172554";
+    drawCurve({startX, startY, controlX1, controlY1, controlX2, controlY2, endX, endY, alpha}: curve) {
+        this.ctx!.strokeStyle = `rgba(23, 37, 84, ${alpha})`;
 
         this.ctx?.beginPath();
         this.ctx?.moveTo(startX, startY);
@@ -140,7 +179,7 @@ class BezierAnimation {
     }
 
     animateThisShit() {
-
+        this.updateFrameCounter();
         this.updateCanvas();
         this.updateCurves();
         this.updateControls();
@@ -154,3 +193,5 @@ bezier.init();
 window.addEventListener("resize", () => {
     bezier.setCanvasSize();
 })
+
+

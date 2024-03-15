@@ -1,6 +1,8 @@
 var config = {
     waveSpeed: 1,
     wavesToMerge: 4,
+    curvesNum: 40,
+    framesToMove: 200
 };
 // Благодаря этой штуке я буду динамически менять кривые
 var WaveNoise = /** @class */ (function () {
@@ -28,6 +30,8 @@ var WaveNoise = /** @class */ (function () {
 }());
 var BezierAnimation = /** @class */ (function () {
     function BezierAnimation(x, y) {
+        if (x === void 0) { x = 0; }
+        if (y === void 0) { y = 0; }
         this.cnv = document.createElement("canvas");
         this.ctx = this.cnv.getContext("2d");
         this.size = {
@@ -37,16 +41,40 @@ var BezierAnimation = /** @class */ (function () {
             cy: 0
         };
         this.controls = [];
-        this.controlsNum = 4;
+        this.controlsNum = 3;
         this.start = {
             x: 0,
             y: 0
         };
+        this.framesCounter = 0;
+        this.time4Start = 0;
+        this.time4End = 0;
         this.start.x = x;
         this.start.y = y;
     }
+    BezierAnimation.prototype.updateFrameCounter = function () {
+        this.framesCounter = (this.framesCounter + 1) % config.framesToMove;
+        if (this.framesCounter === 0) {
+            this.time4Start = Math.random();
+            this.time4End = Math.random();
+        }
+    };
+    BezierAnimation.prototype.getYPlacementType = function (type, i) {
+        if (type > .6) {
+            return this.size.h / config.curvesNum * i;
+        }
+        else if (type > .4) {
+            return this.size.h;
+        }
+        else if (type > .2) {
+            return this.size.cy;
+        }
+        else {
+            return 0;
+        }
+    };
     BezierAnimation.prototype.createControls = function () {
-        for (var index = 0; index < this.controlsNum; index++) {
+        for (var index = 0; index < this.controlsNum + config.curvesNum; index++) {
             var control = new WaveNoise();
             control.addWaves(config.wavesToMerge);
             this.controls.push(control);
@@ -63,25 +91,29 @@ var BezierAnimation = /** @class */ (function () {
         this.size.cy = this.size.h / 2;
     };
     BezierAnimation.prototype.updateCurves = function () {
-        var curveParam = {
-            startX: this.start.x,
-            startY: this.start.y,
-            controlX1: this.controls[0].mergeWaves() * this.size.w,
-            controlY1: this.controls[1].mergeWaves() * this.size.h,
-            controlX2: this.controls[2].mergeWaves() * this.size.w,
-            controlY2: this.controls[3].mergeWaves() * this.size.h,
-            endX: this.size.w,
-            endY: this.size.h
-        };
-        this.drawCurve(curveParam);
+        var x1 = this.controls[0].mergeWaves() * this.size.w, x2 = this.controls[2].mergeWaves() * this.size.w, y1 = this.controls[1].mergeWaves() * this.size.h;
+        for (var index = 0; index < config.curvesNum; index++) {
+            var curveParam = {
+                startX: 0,
+                startY: this.getYPlacementType(this.time4Start, index),
+                controlX1: x1,
+                controlY1: y1,
+                controlX2: x2,
+                controlY2: this.controls[3 + index].mergeWaves() * this.size.h,
+                endX: this.size.w,
+                endY: this.getYPlacementType(this.time4End, index),
+                alpha: this.controls[3 + index].mergeWaves()
+            };
+            this.drawCurve(curveParam);
+        }
     };
     BezierAnimation.prototype.updateControls = function () {
         this.controls.forEach(function (i) { return i.update(); });
     };
     BezierAnimation.prototype.drawCurve = function (_a) {
         var _b, _c, _d, _e;
-        var startX = _a.startX, startY = _a.startY, controlX1 = _a.controlX1, controlY1 = _a.controlY1, controlX2 = _a.controlX2, controlY2 = _a.controlY2, endX = _a.endX, endY = _a.endY;
-        this.ctx.strokeStyle = "#172554";
+        var startX = _a.startX, startY = _a.startY, controlX1 = _a.controlX1, controlY1 = _a.controlY1, controlX2 = _a.controlX2, controlY2 = _a.controlY2, endX = _a.endX, endY = _a.endY, alpha = _a.alpha;
+        this.ctx.strokeStyle = "rgba(23, 37, 84, ".concat(alpha, ")");
         (_b = this.ctx) === null || _b === void 0 ? void 0 : _b.beginPath();
         (_c = this.ctx) === null || _c === void 0 ? void 0 : _c.moveTo(startX, startY);
         (_d = this.ctx) === null || _d === void 0 ? void 0 : _d.bezierCurveTo(controlX1, controlY1, controlX2, controlY2, endX, endY);
@@ -101,6 +133,7 @@ var BezierAnimation = /** @class */ (function () {
     };
     BezierAnimation.prototype.animateThisShit = function () {
         var _this = this;
+        this.updateFrameCounter();
         this.updateCanvas();
         this.updateCurves();
         this.updateControls();
